@@ -10,6 +10,25 @@ import UIKit
 import CoreData
 import Foundation
 
+enum SearchElements: String {
+    
+    case all
+    case documentName
+    case documentContent
+    
+    static var titles: [String] {
+        get {
+            return [SearchElements.all.rawValue, SearchElements.documentName.rawValue, SearchElements.documentContent.rawValue]
+        }
+    }
+    
+    static var elements: [SearchElements] {
+        get {
+            return [SearchElements.all, SearchElements.documentName, SearchElements.documentContent]
+        }
+    }
+}
+
 class DocumentsViewController: UIViewController {
 
     @IBOutlet weak var documentsTableView: UITableView!
@@ -18,16 +37,28 @@ class DocumentsViewController: UIViewController {
     
     var documents = [Document]()
     
+    var searchController: UISearchController?
+    var searchData = SearchElements.all
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+
         documentsTableView.dataSource = self
         documentsTableView.delegate = self
         dateFormatter.timeStyle = .long
         dateFormatter.dateStyle = .long
+        
+        searchController = UISearchController(searchResultsController: nil)
+        searchController?.searchResultsUpdater = self as? UISearchResultsUpdating
+        searchController?.obscuresBackgroundDuringPresentation = false
+        searchController?.searchBar.placeholder = "Search Documents"
+        navigationItem.searchController = searchController
+        definesPresentationContext = true
+       
     }
     
     override func viewWillAppear(_ animated: Bool) {
+    
         guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else{
             return
         }
@@ -42,6 +73,8 @@ class DocumentsViewController: UIViewController {
         } catch{
             print("Fetch could not be performed.")
         }
+        
+         fetchSearch(searchContent: "")
         
     }
     
@@ -63,9 +96,51 @@ class DocumentsViewController: UIViewController {
         destination.existingDocument = documents[selectedRow]
     }
     
+    func fetchSearch(searchContent: String){
+        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
+            return
+        }
+        
+        let managedContext = appDelegate.persistentContainer.viewContext
+        let fetchRequest: NSFetchRequest<Document> = Document.fetchRequest()
+        
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "documentName", ascending: true)]
+        do {
+            if (searchContent != "") {
+                switch (searchData) {
+                case .all:
+                    fetchRequest.predicate = NSPredicate(format: "documentName contains[c] %@ OR documentContent contains[c] %@", searchContent, searchContent)
+                case .documentName:
+                    fetchRequest.predicate = NSPredicate(format: "documentName contains[c] %@", searchContent)
+                case .documentContent:
+                    fetchRequest.predicate = NSPredicate(format: "documentContent contains[c] %@", searchContent)
+                }
+            }
+            
+            documents = try managedContext.fetch(fetchRequest)
+        } catch {
+            print("Fetch for documents could not be performed.")
+            
+            return
+        }
+      }
+    
+    func updateSearchResults(for searchController: UISearchController) {
+        if let searchContent = searchController.searchBar.text {
+            fetchSearch(searchContent: searchContent)
+        }
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, selectedElementsButtonIndexDidChange selectedElements: Int) {
+        searchData = SearchElements.elements[selectedElements]
+        if let searchContent = searchController?.searchBar.text {
+            fetchSearch(searchContent: searchContent)
+        }
+    }
+    
     func deleteDocument(at indexPath: IndexPath){
         let document = documents[indexPath.row]
-        
+
         if let managedContext = document.managedObjectContext{
             managedContext.delete(document)
             

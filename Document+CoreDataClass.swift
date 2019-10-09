@@ -21,10 +21,7 @@ public class Document: NSManagedObject {
                 return nil
             }
             
-            self.init(entity: Document.entity(), insertInto: managedContext
-    
-            
+            self.init(entity: Document.entity(), insertInto: managedContext)
         }
-        
     }
 
